@@ -1,0 +1,105 @@
+esphome:
+  name:  ${device_name}
+  platform: ESP32
+  board: nodemcu-32s
+
+substitutions:
+  device_name: peter_desk
+  
+wifi:
+  ssid: !secret wifi_not_ssid
+  password: !secret wifi_not_pwd
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: ${device_name} Fallback Hotspot
+    password: ESPHomeFallback 
+
+captive_portal:
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:  
+  services:
+    - service: control_stepper
+      variables:
+        target: int
+      then:
+        - stepper.set_target:
+            id: my_stepper
+            target: !lambda 'return target;'
+
+ota:
+
+
+sensor:
+  - platform: dht
+    pin: GPIO22
+    model: DHT22
+    temperature:
+      name: ${device_name} Temperature
+    humidity:
+      name: ${device_name} Humidity
+    update_interval: 60s
+  - platform: wifi_signal
+    name: ${device_name} WiFi Signal
+    update_interval: 10s
+  - platform: uptime
+    name: ${device_name} Uptime
+      
+switch:
+  - platform: restart
+    name: ${device_name} ESP32 Restart
+  - platform: gpio
+    pin: GPIO25
+    name: ${device_name} AUX Relay 1
+    id: relay1
+  - platform: gpio
+    pin: GPIO27
+    name: ${device_name} AUX Relay 2
+    id: relay2
+  - platform: template
+    name: ${device_name} AUX switcher
+    lambda: |-
+      if (id(relay1).state) {
+        return true;
+      } else {
+        return false;
+      }
+    turn_on_action:
+      - switch.turn_on: relay1
+      - switch.turn_on: relay2
+    turn_off_action:
+      - switch.turn_off: relay1
+      - switch.turn_off: relay2
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO23
+      mode: INPUT_PULLUP
+      inverted: true
+    name: ${device_name} headset
+    on_press:
+      then:
+        - stepper.report_position:
+            id: my_stepper
+            position: 0
+        - stepper.set_target:
+            id: my_stepper
+            target: 150
+    
+stepper:
+  - platform: uln2003
+    id: my_stepper
+    pin_a: GPIO19
+    pin_b: GPIO18
+    pin_c: GPIO05
+    pin_d: GPIO17
+    max_speed: 250 steps/s
+    sleep_when_done: true
+    # Optional:
+    acceleration: inf
+    deceleration: inf
